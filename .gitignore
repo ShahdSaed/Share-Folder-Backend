@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env*.local
+
+# Prisma generated files
+/generated/prisma/
+
+# Uploaded storage files (keep folder, ignore uploaded content)
+storage/*
+!storage/.gitkeep
+
+# IDE and agent settings
+.windsurf/
+.claude/
