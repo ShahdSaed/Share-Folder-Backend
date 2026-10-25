@@ -1,0 +1,91 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum Role {
+  ADMIN
+  VIEWER
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  name         String   @db.VarChar(255)
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  role         Role     @default(VIEWER)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  files            File[]            @relation("UserUploadedFiles")
+  auditLogs        AuditLog[]        @relation("UserAuditLogs")
+  fileAccessGrants FileAccessGrant[] @relation("UserAccessGrants")
+
+  @@map("users")
+}
+
+model File {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  name         String   @db.VarChar(255)
+  storageKey   String   @map("storage_key") @db.VarChar(500)
+  mimeType     String   @map("mime_type") @db.VarChar(100)
+  size         BigInt   @db.BigInt
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  uploadedBy   String   @map("uploaded_by") @db.VarChar(36)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  uploader     User              @relation("UserUploadedFiles", fields: [uploadedBy], references: [id], onDelete: Restrict)
+  accessGrants FileAccessGrant[] @relation("FileAccessGrants")
+
+  @@index([uploadedBy])
+  @@map("files")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  userId     String?  @map("user_id") @db.VarChar(36)
+  action     String   @db.VarChar(100)
+  targetType String?  @map("target_type") @db.VarChar(50)
+  targetId   String?  @map("target_id") @db.VarChar(100)
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.Text
+  result     String   @db.VarChar(50)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User? @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model FileAccessGrant {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  userId    String   @map("user_id") @db.VarChar(36)
+  fileId    String   @map("file_id") @db.VarChar(36)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation("UserAccessGrants", fields: [userId], references: [id], onDelete: Cascade)
+  file File @relation("FileAccessGrants", fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([userId, fileId])
+  @@index([expiresAt])
+  @@map("file_access_grants")
+}
