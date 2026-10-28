@@ -3,7 +3,7 @@ const fileController = require("./file.controller");
 const fileAccessRoutes = require("../file-access/file-access.routes");
 const { authenticate } = require("../../middlewares/auth.middleware");
 const { authorizeRoles } = require("../../middlewares/role.middleware");
-const { uploadMiddleware } = require("../../utils/file-storage");
+const { handleFileUpload } = require("../../middlewares/upload.middleware");
 
 const router = express.Router();
 
@@ -25,7 +25,7 @@ router.use("/:id/access", fileAccessRoutes);
 router.post(
     "/",
     authorizeRoles("ADMIN"),
-    uploadMiddleware.single("file"),
+    handleFileUpload,
     fileController.uploadFile
 );
 router.patch("/:id", authorizeRoles("ADMIN"), fileController.updateFile);

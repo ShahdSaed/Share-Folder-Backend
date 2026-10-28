@@ -1,10 +1,16 @@
 const { AppError } = require("../utils/errors");
+const { removeStoredFile } = require("../utils/file-storage");
 const env = require("../config/env");
 
 /**
  * Centralized error handling middleware.
  */
 function errorHandler(err, req, res, next) {
+    // Always clean up any stored file if an error reached the error middleware
+    if (req.file && req.file.filename) {
+        removeStoredFile(req.file.filename);
+    }
+
     // 1. Handle JSON parse errors from body-parser
     if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
         return res.status(400).json({
@@ -14,7 +20,19 @@ function errorHandler(err, req, res, next) {
         });
     }
 
-    // 2. Handle known operational AppError
+    // 2. Handle Multer upload errors
+    if (err.name === "MulterError") {
+        const message = err.code === "LIMIT_FILE_SIZE"
+            ? "File size exceeds the allowed limit of 50 MB"
+            : err.message;
+        return res.status(400).json({
+            status: "error",
+            code: "BAD_REQUEST",
+            message
+        });
+    }
+
+    // 3. Handle known operational AppError
     if (err instanceof AppError) {
         const response = {
             status: "error",
