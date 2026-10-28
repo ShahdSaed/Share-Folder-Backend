@@ -1,5 +1,7 @@
 const { describe, it, before, after } = require("node:test");
 const assert = require("node:assert/strict");
+const path = require("path");
+const fs = require("fs");
 const { app } = require("../../server");
 const prismaPromise = require("../../src/config/prisma");
 const { hashPassword } = require("../../src/utils/password");
@@ -214,6 +216,110 @@ describe("Users and Files Integration Tests", () => {
             assert.strictEqual(typeof data.data.file.size, "number", "size must be serialized as number, not BigInt");
 
             uploadedFileId = data.data.file.id;
+        });
+
+        it("should reject file upload when password is shorter than 8 characters and leave no orphaned files", async () => {
+            const privateStorageDir = path.resolve(__dirname, "../../storage/private");
+            const filesBefore = fs.readdirSync(privateStorageDir);
+
+            const formData = new FormData();
+            const fileBlob = new Blob(["Short password test file content"], { type: "text/plain" });
+            formData.append("file", fileBlob, "ShortPass.txt");
+            formData.append("password", "short1"); // 6 chars < 8
+
+            const res = await fetch(`${baseUrl}/api/v1/files`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${adminToken}` },
+                body: formData
+            });
+
+            assert.strictEqual(res.status, 400);
+            const data = await res.json();
+            assert.strictEqual(data.status, "error");
+            assert.ok(data.message.includes("between 8 and 128"));
+
+            // Verify no file was left on disk
+            const filesAfter = fs.readdirSync(privateStorageDir);
+            assert.strictEqual(filesAfter.length, filesBefore.length, "No orphaned file should remain in private storage");
+        });
+
+        it("should reject file upload with extension and MIME type mismatch", async () => {
+            const formData = new FormData();
+            // .pdf with text/plain mime type
+            const fileBlob = new Blob(["Hello"], { type: "text/plain" });
+            formData.append("file", fileBlob, "fake.pdf");
+            formData.append("password", "SecurePassword123!");
+
+            const res = await fetch(`${baseUrl}/api/v1/files`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${adminToken}` },
+                body: formData
+            });
+
+            assert.strictEqual(res.status, 400);
+            const data = await res.json();
+            assert.strictEqual(data.status, "error");
+            assert.ok(data.message.includes("Unsupported file type or invalid MIME type"));
+        });
+
+        it("should reject file upload when content signature does not match declared type and clean up disk", async () => {
+            const privateStorageDir = path.resolve(__dirname, "../../storage/private");
+            const filesBefore = fs.readdirSync(privateStorageDir);
+
+            const formData = new FormData();
+            // Declared as application/pdf, but content is Windows executable MZ header
+            const fakePdfBlob = new Blob([new Uint8Array([0x4D, 0x5A, 0x90, 0x00, 0x03, 0x00])], {
+                type: "application/pdf"
+            });
+            formData.append("file", fakePdfBlob, "disguised_exe.pdf");
+            formData.append("password", "SecurePassword123!");
+
+            const res = await fetch(`${baseUrl}/api/v1/files`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${adminToken}` },
+                body: formData
+            });
+
+            assert.strictEqual(res.status, 400);
+            const data = await res.json();
+            assert.strictEqual(data.status, "error");
+            assert.ok(data.message.includes("File content does not match its declared type"));
+
+            // Verify orphaned file was cleaned up immediately
+            const filesAfter = fs.readdirSync(privateStorageDir);
+            assert.strictEqual(filesAfter.length, filesBefore.length, "Uploaded file with invalid signature must be deleted");
+        });
+
+        it("should reject file password verification when password is shorter than 8 characters", async () => {
+            const res = await fetch(`${baseUrl}/api/v1/files/${uploadedFileId}/verify-password`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${viewerToken}`
+                },
+                body: JSON.stringify({ password: "123" })
+            });
+
+            assert.strictEqual(res.status, 400);
+            const data = await res.json();
+            assert.strictEqual(data.status, "error");
+            assert.ok(data.message.includes("between 8 and 128"));
+        });
+
+        it("should reject updating file name when name is empty", async () => {
+            const res = await fetch(`${baseUrl}/api/v1/files/${uploadedFileId}`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${adminToken}`
+                },
+                body: JSON.stringify({ name: "   " })
+            });
+
+            assert.strictEqual(res.status, 400);
+            const data = await res.json();
+            assert.strictEqual(data.status, "error");
+            assert.ok(data.message.includes("cannot be empty"));
         });
 
         it("should reject VIEWER attempting to upload a file with 403 Forbidden", async () => {

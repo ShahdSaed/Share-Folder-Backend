@@ -161,4 +161,14 @@ describe("Middleware Unit Tests", () => {
             auditLogService.logEvent = originalLogEvent;
         });
     });
+
+    describe("upload.middleware", () => {
+        const { handleFileUpload, uploadSingle } = require("../../src/middlewares/upload.middleware");
+
+        it("should export handleFileUpload middleware function and uploadSingle factory", () => {
+            assert.strictEqual(typeof handleFileUpload, "function");
+            assert.strictEqual(typeof uploadSingle, "function");
+            assert.strictEqual(typeof uploadSingle("customField"), "function");
+        });
+    });
 });
