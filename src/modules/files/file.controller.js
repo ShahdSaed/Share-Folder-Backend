@@ -1,5 +1,6 @@
 const path = require("path");
 const fs = require("fs");
+const contentDisposition = require("content-disposition");
 const fileService = require("./file.service");
 const {
     validateUploadInput,
@@ -7,6 +8,8 @@ const {
     validateFilePasswordInput
 } = require("./file.validation");
 const { validatePagination } = require("../../utils/validator");
+const { validateFileContentSignature, removeStoredFile } = require("../../utils/file-storage");
+const { BadRequestError } = require("../../utils/errors");
 
 class FileController {
     constructor(service = fileService) {
@@ -19,6 +22,18 @@ class FileController {
      */
     uploadFile = async (req, res, next) => {
         try {
+            if (!req.file) {
+                throw new BadRequestError("File is required in multipart form data (field name: 'file')");
+            }
+
+            // 1. Content signature validation on the stored file
+            const ext = path.extname(req.file.originalname || "").toLowerCase();
+            const isValidSignature = await validateFileContentSignature(req.file.path, ext);
+            if (!isValidSignature) {
+                throw new BadRequestError("File content does not match its declared type");
+            }
+
+            // 2. Validate display name and protection password
             const { name, password } = validateUploadInput(req.file, req.body);
             const ipAddress = req.ip || req.socket?.remoteAddress || null;
             const userAgent = req.headers["user-agent"] || null;
@@ -38,6 +53,10 @@ class FileController {
                 data: { file }
             });
         } catch (error) {
+            // Clean up stored file if validation, signature check, or service fails
+            if (req.file && req.file.filename) {
+                removeStoredFile(req.file.filename);
+            }
             next(error);
         }
     };
@@ -223,10 +242,10 @@ class FileController {
 
             res.setHeader("Content-Type", mimeType || "application/octet-stream");
             res.setHeader("Content-Length", size);
-            res.setHeader(
-                "Content-Disposition",
-                `${disposition}; filename="${encodeURIComponent(name)}"`
-            );
+            const dispositionHeader = typeof contentDisposition.create === "function"
+                ? contentDisposition.create(name, { type: disposition })
+                : contentDisposition(name, { type: disposition });
+            res.setHeader("Content-Disposition", dispositionHeader);
 
             // Stream private file
             const fileStream = fs.createReadStream(filePath);
