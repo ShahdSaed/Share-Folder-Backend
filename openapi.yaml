@@ -1,0 +1,1015 @@
+openapi: 3.0.3
+info:
+  title: Company File Hub API
+  version: 1.0.0
+  description: |
+    Enterprise Company File Hub Backend API for Angular Frontend Integration.
+    Provides secure file management, role-based access control, file password unlocking,
+    Argon2id password hashing, Access Token + Refresh Token rotation with HttpOnly cookies,
+    and audit logging.
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Local Development Server (v1 canonical prefix)
+  - url: http://localhost:5000/api
+    description: Legacy Compatibility Prefix
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Returns health status and checks active database connectivity.
+      responses:
+        "200":
+          description: Healthy status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  message:
+                    type: string
+                    example: Backend and database are connected
+        "503":
+          description: Database unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      summary: User Login
+      description: |
+        Authenticates user via email and password using Argon2id.
+        Issues a short-lived Access Token (15 min) in the response body
+        and sets an HttpOnly, Secure Refresh Token cookie (7 days).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: viewer@company.com
+                password:
+                  type: string
+                  format: password
+                  example: SecurePassword123!
+      responses:
+        "200":
+          description: Authentication successful
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: refresh_token=opaque_token; Path=/api/v1/auth; HttpOnly; SameSite=Lax
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Authentication successful
+                  data:
+                    $ref: "#/components/schemas/AuthSuccessData"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /auth/refresh:
+    post:
+      summary: Refresh Access Token
+      description: |
+        Refreshes an expired Access Token using the opaque Refresh Token stored in the HttpOnly cookie.
+        Implements atomic token rotation (invalidates the previous refresh token and issues a new one).
+        CSRF protected via Origin validation.
+      responses:
+        "200":
+          description: Session refreshed
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: refresh_token=new_opaque_token; Path=/api/v1/auth; HttpOnly; SameSite=Lax
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Session refreshed
+                  data:
+                    $ref: "#/components/schemas/AuthSuccessData"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /auth/logout:
+    post:
+      summary: User Logout
+      description: |
+        Revokes the current refresh session and clears the HttpOnly refresh token cookie.
+      responses:
+        "200":
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Logged out successfully
+                  data:
+                    type: "null"
+                    example: null
+
+  /auth/logout-all:
+    post:
+      summary: Logout All Sessions
+      security:
+        - BearerAuth: []
+      description: |
+        Revokes all active refresh sessions belonging to the current user and clears the cookie.
+      responses:
+        "200":
+          description: All sessions revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: All sessions have been revoked
+                  data:
+                    type: "null"
+                    example: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/change-password:
+    patch:
+      summary: Change User Password
+      security:
+        - BearerAuth: []
+      description: |
+        Changes current user password, verifies old password with Argon2id,
+        and revokes all active refresh sessions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword:
+                  type: string
+                  example: OldPassword123!
+                newPassword:
+                  type: string
+                  example: NewPassword123!
+      responses:
+        "200":
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Password changed successfully. Please log in again with your new password.
+                  data:
+                    type: "null"
+                    example: null
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/me:
+    get:
+      summary: Current User Profile
+      security:
+        - BearerAuth: []
+      description: Returns safe profile of the currently authenticated user.
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users:
+    get:
+      summary: List Users (ADMIN only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/LimitQuery"
+      responses:
+        "200":
+          description: Paginated users list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      users:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/User"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      summary: Create User (ADMIN only)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name:
+                  type: string
+                  example: John Doe
+                email:
+                  type: string
+                  format: email
+                  example: john.doe@company.com
+                password:
+                  type: string
+                  example: UserSecurePass123!
+                role:
+                  type: string
+                  enum: [ADMIN, VIEWER]
+                  default: VIEWER
+      responses:
+        "201":
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: User created successfully
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /users/{id}:
+    get:
+      summary: Get User By ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User details (ADMIN or own user)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      summary: Update User (ADMIN only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum: [ADMIN, VIEWER]
+                isActive:
+                  type: boolean
+      responses:
+        "200":
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /users/{id}/password:
+    patch:
+      summary: Reset User Password (ADMIN only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+                  example: ResetPassword123!
+      responses:
+        "200":
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: User password updated successfully
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: "#/components/schemas/User"
+
+  /files:
+    get:
+      summary: List Files
+      security:
+        - BearerAuth: []
+      description: |
+        Returns files visible to the requester.
+        ADMIN sees all uploaded files. VIEWER sees only files granted to them.
+      parameters:
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/LimitQuery"
+      responses:
+        "200":
+          description: Paginated file list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      files:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/File"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+    post:
+      summary: Upload File (ADMIN only)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, password]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File content (PDF, DOCX, XLSX, TXT, ZIP up to 50MB)
+                password:
+                  type: string
+                  format: password
+                  description: File unlock password (8-128 chars)
+                name:
+                  type: string
+                  description: Optional custom display name
+      responses:
+        "201":
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: File uploaded successfully
+                  data:
+                    type: object
+                    properties:
+                      file:
+                        $ref: "#/components/schemas/File"
+
+  /files/{id}:
+    get:
+      summary: Get File Metadata
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: File metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      file:
+                        $ref: "#/components/schemas/File"
+    patch:
+      summary: Rename File (ADMIN only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  example: Q4-Financial-Report-Updated.pdf
+      responses:
+        "200":
+          description: File renamed successfully
+    delete:
+      summary: Delete File (ADMIN only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: File deleted from database and storage
+
+  /files/{id}/password:
+    put:
+      summary: Update File Password (ADMIN only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+                  example: NewSecretFilePass123!
+      responses:
+        "200":
+          description: Password updated
+
+  /files/{id}/verify-password:
+    post:
+      summary: Verify File Password & Obtain Unlock Token
+      security:
+        - BearerAuth: []
+      description: |
+        Rate-limited endpoint (5 failed attempts per user/file per 15 min).
+        Verifies file password using Argon2id.
+        Issues a short-lived FILE_UNLOCK JWT (15 minutes).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+                  example: FileSecretPass123!
+      responses:
+        "200":
+          description: File unlocked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Password verified. File unlocked for viewing.
+                  data:
+                    type: object
+                    properties:
+                      unlockToken:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      expiresInSeconds:
+                        type: integer
+                        example: 900
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /files/{id}/content:
+    get:
+      summary: Stream File Content
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-File-Unlock-Token
+          in: header
+          required: false
+          description: Short-lived FILE_UNLOCK JWT obtained from /verify-password (required for VIEWER).
+          schema:
+            type: string
+        - name: inline
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Set true to view in browser instead of attachment download.
+      responses:
+        "200":
+          description: Raw file stream
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                example: application/pdf
+            Content-Disposition:
+              schema:
+                type: string
+                example: inline; filename="document.pdf"
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /files/{id}/access:
+    get:
+      summary: List File Access Grants (ADMIN only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, active, expired]
+            default: all
+      responses:
+        "200":
+          description: Grants list
+    post:
+      summary: Grant File Access (ADMIN only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: string
+                  example: user-uuid-123
+                expiresInDays:
+                  type: integer
+                  minimum: 1
+                  maximum: 365
+                  default: 30
+      responses:
+        "200":
+          description: Grant updated
+        "201":
+          description: Grant created
+
+  /files/{id}/access/{userId}:
+    delete:
+      summary: Revoke File Access Grant (ADMIN only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Grant revoked
+
+  /admin/audit-logs:
+    get:
+      summary: List Audit Logs (ADMIN only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/LimitQuery"
+        - name: action
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+        - name: result
+          in: query
+          schema:
+            type: string
+            maxLength: 50
+        - name: userId
+          in: query
+          schema:
+            type: string
+            maxLength: 36
+        - name: targetType
+          in: query
+          schema:
+            type: string
+            maxLength: 50
+        - name: fromDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: toDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Paginated audit logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      logs:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/AuditLog"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    PageQuery:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 1
+    LimitQuery:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 20
+        maximum: 100
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [ADMIN, VIEWER]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    File:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        mimeType:
+          type: string
+        size:
+          type: integer
+        uploadedBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+          nullable: true
+        action:
+          type: string
+        targetType:
+          type: string
+          nullable: true
+        targetId:
+          type: string
+          nullable: true
+        ipAddress:
+          type: string
+          nullable: true
+        result:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        user:
+          $ref: "#/components/schemas/User"
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+        hasNext:
+          type: boolean
+        hasPrev:
+          type: boolean
+
+    AuthSuccessData:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        token:
+          type: string
+        expiresIn:
+          type: string
+          example: 15m
+        user:
+          $ref: "#/components/schemas/User"
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        code:
+          type: string
+          example: BAD_REQUEST
+        message:
+          type: string
+          example: Detailed readable error message
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    TooManyRequests:
+      description: Rate Limit Exceeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
