@@ -4,6 +4,7 @@ const fileAccessRoutes = require("../file-access/file-access.routes");
 const { authenticate } = require("../../middlewares/auth.middleware");
 const { authorizeRoles } = require("../../middlewares/role.middleware");
 const { handleFileUpload } = require("../../middlewares/upload.middleware");
+const { filePasswordRateLimiter } = require("../../middlewares/rate-limit.middleware");
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ router.get("/", fileController.getFiles);
 router.get("/:id", fileController.getFileById);
 
 // 2. File Password Verification & Secure Content Streaming
-router.post("/:id/verify-password", fileController.verifyFilePassword);
+router.post("/:id/verify-password", filePasswordRateLimiter, fileController.verifyFilePassword);
 router.get("/:id/content", fileController.getFileContent);
 
 // 3. File Access Assignment Routes (ADMIN only)

@@ -3,6 +3,7 @@ const fileRepository = require("../files/file.repository");
 const userRepository = require("../users/user.repository");
 const auditLogService = require("../audit-logs/audit-log.service");
 const { NotFoundError, BadRequestError } = require("../../utils/errors");
+const { validateExpiresInDays } = require("./file-access.validation");
 
 class FileAccessService {
     constructor(
@@ -42,12 +43,10 @@ class FileAccessService {
             throw new BadRequestError("Cannot grant file access to a deactivated user account");
         }
 
-        // 4. Calculate expiration date
-        const days = Number(expiresInDays) || 30;
+        const days = validateExpiresInDays(expiresInDays);
         const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
-        // 5. Persist access grant
-        const grant = await this.accessRepository.grantAccess({
+        const { grant, created } = await this.accessRepository.grantAccess({
             fileId,
             userId,
             expiresAt
@@ -64,19 +63,16 @@ class FileAccessService {
             result: "Success"
         });
 
-        return grant;
+        return { grant, created };
     }
 
-    /**
-     * Retrieve all active access grants for a file (ADMIN only).
-     */
-    async getGrantsByFileId(fileId) {
+    async getGrantsByFileId(fileId, { status = "all" } = {}) {
         const file = await this.fileRepository.findById(fileId);
         if (!file) {
             throw new NotFoundError("File not found");
         }
 
-        return await this.accessRepository.findGrantsByFileId(fileId);
+        return await this.accessRepository.findGrantsByFileId(fileId, { status });
     }
 
     /**

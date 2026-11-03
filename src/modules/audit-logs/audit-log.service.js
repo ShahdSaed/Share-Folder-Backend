@@ -31,13 +31,16 @@ class AuditLogService {
      * Get paginated audit logs for administrators.
      * @param {object} params 
      */
-    async getAuditLogs({ page = 1, limit = 20, skip = 0, action, result, userId }) {
+    async getAuditLogs({ page = 1, limit = 20, skip = 0, action, result, userId, targetType, fromDate, toDate }) {
         const { logs, total } = await this.repository.findPaginated({
             skip,
             limit,
             action,
             result,
-            userId
+            userId,
+            targetType,
+            fromDate,
+            toDate
         });
 
         const totalPages = Math.ceil(total / limit) || 1;

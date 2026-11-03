@@ -39,6 +39,12 @@ class ConflictError extends AppError {
     }
 }
 
+class TooManyRequestsError extends AppError {
+    constructor(message = "Too many requests. Please try again later.") {
+        super(message, 429, "TOO_MANY_REQUESTS");
+    }
+}
+
 class InternalServerError extends AppError {
     constructor(message = "Internal Server Error") {
         super(message, 500, "INTERNAL_SERVER_ERROR");
@@ -52,5 +58,6 @@ module.exports = {
     ForbiddenError,
     NotFoundError,
     ConflictError,
+    TooManyRequestsError,
     InternalServerError
 };

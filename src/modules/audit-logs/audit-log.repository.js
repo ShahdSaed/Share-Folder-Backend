@@ -30,13 +30,19 @@ class AuditLogRepository {
      * @param {object} params
      * @returns {Promise<{ logs: Array, total: number }>}
      */
-    async findPaginated({ skip = 0, limit = 20, action, result, userId }) {
+    async findPaginated({ skip = 0, limit = 20, action, result, userId, targetType, fromDate, toDate }) {
         const prisma = await this.getPrisma();
 
         const where = {};
         if (action) where.action = action;
         if (result) where.result = result;
         if (userId) where.userId = userId;
+        if (targetType) where.targetType = targetType;
+        if (fromDate || toDate) {
+            where.createdAt = {};
+            if (fromDate) where.createdAt.gte = fromDate;
+            if (toDate) where.createdAt.lte = toDate;
+        }
 
         const [logs, total] = await Promise.all([
             prisma.auditLog.findMany({

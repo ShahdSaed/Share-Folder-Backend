@@ -1,15 +1,12 @@
 const fileAccessService = require("./file-access.service");
 const { BadRequestError } = require("../../utils/errors");
+const { validateExpiresInDays, validateGrantStatus } = require("./file-access.validation");
 
 class FileAccessController {
     constructor(service = fileAccessService) {
         this.service = service;
     }
 
-    /**
-     * Grant access to a VIEWER (ADMIN only).
-     * POST /api/v1/files/:id/access
-     */
     grantAccess = async (req, res, next) => {
         try {
             const fileId = req.params.id;
@@ -22,33 +19,30 @@ class FileAccessController {
             const ipAddress = req.ip || req.socket?.remoteAddress || null;
             const userAgent = req.headers["user-agent"] || null;
 
-            const grant = await this.service.grantAccess({
+            const { grant, created } = await this.service.grantAccess({
                 fileId,
                 userId,
-                expiresInDays: expiresInDays ? Number(expiresInDays) : 30,
+                expiresInDays: validateExpiresInDays(expiresInDays),
                 adminUser: req.user,
                 ipAddress,
                 userAgent
             });
 
-            return res.status(201).json({
+            return res.status(created ? 201 : 200).json({
                 status: "success",
-                message: "Access granted successfully",
-                data: { grant }
+                message: created ? "Access granted successfully" : "Access grant updated successfully",
+                data: { grant, created }
             });
         } catch (error) {
             next(error);
         }
     };
 
-    /**
-     * List access grants for a file (ADMIN only).
-     * GET /api/v1/files/:id/access
-     */
     getGrants = async (req, res, next) => {
         try {
             const fileId = req.params.id;
-            const grants = await this.service.getGrantsByFileId(fileId);
+            const status = validateGrantStatus(req.query.status);
+            const grants = await this.service.getGrantsByFileId(fileId, { status });
 
             return res.status(200).json({
                 status: "success",
@@ -59,10 +53,6 @@ class FileAccessController {
         }
     };
 
-    /**
-     * Revoke access grant for a user (ADMIN only).
-     * DELETE /api/v1/files/:id/access/:userId
-     */
     revokeAccess = async (req, res, next) => {
         try {
             const fileId = req.params.id;

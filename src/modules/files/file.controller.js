@@ -221,7 +221,6 @@ class FileController {
         try {
             // Unlock token can be sent via query param or header
             const unlockToken =
-                req.query.token ||
                 req.headers["x-file-unlock-token"] ||
                 req.headers["x-unlock-token"] ||
                 null;

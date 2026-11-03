@@ -5,21 +5,24 @@ BigInt.prototype.toJSON = function () {
 
 const env = require("./src/config/env");
 const express = require("express");
-const cors = require("cors");
+const cookieParser = require("cookie-parser");
 const prismaPromise = require("./src/config/prisma");
 
 const authRoutes = require("./src/modules/auth/auth.routes");
 const userRoutes = require("./src/modules/users/user.routes");
 const fileRoutes = require("./src/modules/files/file.routes");
 const auditLogRoutes = require("./src/modules/audit-logs/audit-log.routes");
+const { helmetMiddleware, corsMiddleware } = require("./src/middlewares/http-security.middleware");
 const { errorHandler, notFoundHandler } = require("./src/middlewares/error.middleware");
 
 const app = express();
 const PORT = env.port;
 
-// Global Middleware
-app.use(cors());
-app.use(express.json());
+// Global Middleware: Helmet first, then CORS (including preflight), then JSON parsing
+app.use(helmetMiddleware);
+app.use(corsMiddleware);
+app.use(cookieParser());
+app.use(express.json({ limit: "1mb" }));
 
 // Health Check Endpoint (supports both /api/health and /api/v1/health)
 const healthHandler = async (req, res) => {
