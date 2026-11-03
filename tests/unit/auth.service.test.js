@@ -9,6 +9,7 @@ const AuthService = require("../../src/modules/auth/auth.service").constructor;
 describe("AuthService (Unit Tests with Mocks)", () => {
     let mockUserRepo;
     let mockAuditService;
+    let mockSessionRepo;
     let authService;
     let testPasswordHash;
 
@@ -55,7 +56,26 @@ describe("AuthService (Unit Tests with Mocks)", () => {
             }
         };
 
-        authService = new AuthService(mockUserRepo, mockAuditService);
+        mockSessionRepo = {
+            sessions: [],
+            createSession: async function (data) {
+                const session = { id: `sess-${this.sessions.length + 1}`, ...data, revokedAt: null };
+                this.sessions.push(session);
+                return session;
+            },
+            rotateSession: async function () {
+                throw new Error("rotateSession should be mocked per test");
+            },
+            revokeByRawToken: async function () {
+                return { count: 1 };
+            },
+            revokeAllForUser: async function () {
+                this.sessions = this.sessions.map((s) => ({ ...s, revokedAt: new Date() }));
+                return { count: this.sessions.length };
+            }
+        };
+
+        authService = new AuthService(mockUserRepo, mockAuditService, mockSessionRepo);
     });
 
     it("should successfully authenticate valid credentials, return a token, and never leak passwordHash", async () => {
@@ -66,13 +86,15 @@ describe("AuthService (Unit Tests with Mocks)", () => {
             userAgent: "TestAgent"
         });
 
-        assert.ok(result.token, "Result must contain token");
+        assert.ok(result.accessToken, "Result must contain accessToken");
+        assert.ok(result.refreshToken, "Result must contain refreshToken");
         assert.ok(result.user, "Result must contain user object");
         assert.strictEqual(result.user.id, "admin-uuid-1");
         assert.strictEqual(result.user.role, "ADMIN");
         assert.strictEqual(result.user.passwordHash, undefined, "passwordHash must never be returned");
+        assert.strictEqual(mockSessionRepo.sessions.length, 1);
 
-        const decoded = verifyToken(result.token);
+        const decoded = verifyToken(result.accessToken);
         assert.strictEqual(decoded.sub, "admin-uuid-1");
         assert.strictEqual(decoded.role, "ADMIN");
 

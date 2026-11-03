@@ -1,6 +1,6 @@
 const { describe, it, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
-const { signToken } = require("../../src/utils/jwt");
+const { signToken, signFileUnlockToken } = require("../../src/utils/jwt");
 const { authenticate } = require("../../src/middlewares/auth.middleware");
 const { authorizeRoles } = require("../../src/middlewares/role.middleware");
 const userRepository = require("../../src/modules/users/user.repository");
@@ -105,6 +105,21 @@ describe("Middleware Unit Tests", () => {
             assert.deepStrictEqual(req.user, mockUser);
 
             userRepository.findById = originalFindById;
+        });
+
+        it("should reject FILE_UNLOCK tokens as normal authentication", async () => {
+            const unlockToken = signFileUnlockToken({
+                userId: "active-user-id",
+                fileId: "file-1"
+            });
+            const req = { headers: { authorization: `Bearer ${unlockToken}` } };
+            const res = {};
+            let nextError;
+            await authenticate(req, res, (err) => { nextError = err; });
+
+            assert.ok(nextError);
+            assert.strictEqual(nextError.statusCode, 401);
+            assert.ok(nextError.message.includes("invalid"));
         });
     });
 

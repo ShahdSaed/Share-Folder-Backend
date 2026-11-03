@@ -1,7 +1,7 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 const jwt = require("jsonwebtoken");
-const { signToken, verifyToken, ALLOWED_ALGORITHM } = require("../../src/utils/jwt");
+const { signToken, verifyToken, ALLOWED_ALGORITHM, TOKEN_TYPE_ACCESS } = require("../../src/utils/jwt");
 const env = require("../../src/config/env");
 
 describe("JWT Utility (HS256)", () => {
@@ -17,6 +17,7 @@ describe("JWT Utility (HS256)", () => {
         const decoded = verifyToken(token);
         assert.strictEqual(decoded.sub, "user-123");
         assert.strictEqual(decoded.role, "ADMIN");
+        assert.strictEqual(decoded.type, TOKEN_TYPE_ACCESS);
         assert.ok(decoded.iat, "iat claim must be present");
         assert.ok(decoded.exp, "exp claim must be present");
     });

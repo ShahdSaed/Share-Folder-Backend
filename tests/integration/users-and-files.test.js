@@ -419,8 +419,11 @@ describe("Users and Files Integration Tests", () => {
         });
 
         it("should stream file content successfully when unlock token is provided", async () => {
-            const res = await fetch(`${baseUrl}/api/v1/files/${uploadedFileId}/content?token=${unlockToken}`, {
-                headers: { Authorization: `Bearer ${viewerToken}` }
+            const res = await fetch(`${baseUrl}/api/v1/files/${uploadedFileId}/content`, {
+                headers: {
+                    Authorization: `Bearer ${viewerToken}`,
+                    "X-File-Unlock-Token": unlockToken
+                }
             });
 
             assert.strictEqual(res.status, 200);
