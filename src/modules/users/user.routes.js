@@ -2,6 +2,7 @@ const express = require("express");
 const userController = require("./user.controller");
 const { authenticate } = require("../../middlewares/auth.middleware");
 const { authorizeRoles } = require("../../middlewares/role.middleware");
+const { ForbiddenError } = require("../../utils/errors");
 
 const router = express.Router();
 
@@ -14,11 +15,7 @@ router.get("/", authorizeRoles("ADMIN"), userController.getUsers);
 router.get("/:id", (req, res, next) => {
     // ADMIN can access any user, VIEWER can only access self
     if (req.user.role !== "ADMIN" && req.user.id !== req.params.id) {
-        return res.status(403).json({
-            status: "error",
-            code: "FORBIDDEN",
-            message: "Access forbidden: you may only view your own user profile"
-        });
+        return next(new ForbiddenError("Access forbidden: you may only view your own user profile"));
     }
     return userController.getUserById(req, res, next);
 });

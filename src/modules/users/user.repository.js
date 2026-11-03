@@ -37,6 +37,13 @@ class UserRepository {
         });
     }
 
+    async findByIdWithPassword(id) {
+        const prisma = await this.getPrisma();
+        return await prisma.user.findUnique({
+            where: { id }
+        });
+    }
+
     /**
      * Retrieve paginated list of users with optional filtering.
      * @param {object} params

@@ -1,4 +1,4 @@
-const { verifyToken } = require("../utils/jwt");
+const { verifyAccessToken } = require("../utils/jwt");
 const userRepository = require("../modules/users/user.repository");
 const { UnauthorizedError } = require("../utils/errors");
 
@@ -21,7 +21,7 @@ async function authenticate(req, res, next) {
         }
 
         // 1. Verify token signature and expiration
-        const decoded = verifyToken(token);
+        const decoded = verifyAccessToken(token);
 
         // 2. Load current user from database as source of truth
         const user = await userRepository.findById(decoded.sub);

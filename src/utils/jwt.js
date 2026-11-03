@@ -4,13 +4,9 @@ const { UnauthorizedError, ForbiddenError } = require("./errors");
 
 const ALLOWED_ALGORITHM = "HS256";
 const FILE_UNLOCK_EXPIRATION = "15m";
+const TOKEN_TYPE_ACCESS = "ACCESS";
+const TOKEN_TYPE_FILE_UNLOCK = "FILE_UNLOCK";
 
-/**
- * Generate a signed JWT access token.
- * @param {object} payload - claims to sign (must include sub)
- * @param {object} options - override options like expiresIn
- * @returns {string} signed JWT
- */
 function signToken(payload, options = {}) {
     if (!payload || !payload.sub) {
         throw new Error("Token payload must include a 'sub' claim");
@@ -18,9 +14,9 @@ function signToken(payload, options = {}) {
 
     return jwt.sign(
         {
-            ...payload,
             sub: payload.sub,
-            role: payload.role
+            role: payload.role,
+            type: TOKEN_TYPE_ACCESS
         },
         env.jwt.secret,
         {
@@ -30,14 +26,6 @@ function signToken(payload, options = {}) {
     );
 }
 
-/**
- * Generate a short-lived, file-specific unlock token.
- * Bound to specific user and file, expires in 15 minutes.
- * @param {object} params
- * @param {string} params.userId
- * @param {string} params.fileId
- * @returns {string}
- */
 function signFileUnlockToken({ userId, fileId }) {
     if (!userId || !fileId) {
         throw new Error("Both userId and fileId are required for unlock grant");
@@ -47,7 +35,7 @@ function signFileUnlockToken({ userId, fileId }) {
         {
             sub: userId,
             fileId,
-            type: "FILE_UNLOCK"
+            type: TOKEN_TYPE_FILE_UNLOCK
         },
         env.jwt.secret,
         {
@@ -57,11 +45,6 @@ function signFileUnlockToken({ userId, fileId }) {
     );
 }
 
-/**
- * Verify and decode a JWT token using HS256.
- * @param {string} token - raw JWT string
- * @returns {object} decoded payload
- */
 function verifyToken(token) {
     if (!token || typeof token !== "string") {
         throw new UnauthorizedError("Authentication token is missing or malformed");
@@ -82,14 +65,14 @@ function verifyToken(token) {
     }
 }
 
-/**
- * Verify a file unlock token for a specific user and file.
- * @param {string} token
- * @param {object} context
- * @param {string} context.userId
- * @param {string} context.fileId
- * @returns {boolean}
- */
+function verifyAccessToken(token) {
+    const decoded = verifyToken(token);
+    if (decoded.type !== TOKEN_TYPE_ACCESS) {
+        throw new UnauthorizedError("Authentication token is invalid");
+    }
+    return decoded;
+}
+
 function verifyFileUnlockToken(token, { userId, fileId }) {
     if (!token) {
         throw new ForbiddenError("File unlock verification required to view or download file content");
@@ -97,7 +80,7 @@ function verifyFileUnlockToken(token, { userId, fileId }) {
 
     const decoded = verifyToken(token);
 
-    if (decoded.type !== "FILE_UNLOCK") {
+    if (decoded.type !== TOKEN_TYPE_FILE_UNLOCK) {
         throw new ForbiddenError("Invalid grant token type");
     }
 
@@ -116,7 +99,10 @@ module.exports = {
     signToken,
     signFileUnlockToken,
     verifyToken,
+    verifyAccessToken,
     verifyFileUnlockToken,
     ALLOWED_ALGORITHM,
-    FILE_UNLOCK_EXPIRATION
+    FILE_UNLOCK_EXPIRATION,
+    TOKEN_TYPE_ACCESS,
+    TOKEN_TYPE_FILE_UNLOCK
 };

@@ -1,12 +1,18 @@
 const userRepository = require("./user.repository");
 const auditLogService = require("../audit-logs/audit-log.service");
+const refreshSessionRepository = require("../auth/refresh-session.repository");
 const { hashPassword } = require("../../utils/password");
 const { ConflictError, NotFoundError, BadRequestError } = require("../../utils/errors");
 
 class UserService {
-    constructor(userRepo = userRepository, auditService = auditLogService) {
+    constructor(
+        userRepo = userRepository,
+        auditService = auditLogService,
+        sessionRepo = refreshSessionRepository
+    ) {
         this.userRepository = userRepo;
         this.auditLogService = auditService;
+        this.sessionRepository = sessionRepo;
     }
 
     /**
@@ -104,6 +110,10 @@ class UserService {
 
         const updatedUser = await this.userRepository.update(id, updates);
 
+        if (updates.isActive === false) {
+            await this.sessionRepository.revokeAllForUser(id);
+        }
+
         await this.auditLogService.logEvent({
             userId: adminUser.id,
             action: "USER_UPDATED",
@@ -132,6 +142,10 @@ class UserService {
 
         const updatedUser = await this.userRepository.updateStatus(id, isActive);
 
+        if (!isActive) {
+            await this.sessionRepository.revokeAllForUser(id);
+        }
+
         await this.auditLogService.logEvent({
             userId: adminUser.id,
             action: isActive ? "USER_ACTIVATED" : "USER_DEACTIVATED",
@@ -156,6 +170,7 @@ class UserService {
 
         const passwordHash = await hashPassword(newPassword);
         const updatedUser = await this.userRepository.updatePassword(id, passwordHash);
+        await this.sessionRepository.revokeAllForUser(id);
 
         await this.auditLogService.logEvent({
             userId: adminUser.id,
