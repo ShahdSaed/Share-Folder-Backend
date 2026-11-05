@@ -8,7 +8,10 @@ const CORS_ALLOWED_HEADERS = [
     "Content-Type",
     "Authorization",
     "X-File-Unlock-Token",
-    "X-Unlock-Token"
+    "X-Unlock-Token",
+    "ngrok-skip-browser-warning",
+    "Accept",
+    "X-Requested-With"
 ];
 
 const HSTS_MAX_AGE_SECONDS = 15552000; // 180 days

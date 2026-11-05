@@ -18,6 +18,9 @@ const { errorHandler, notFoundHandler } = require("./src/middlewares/error.middl
 const app = express();
 const PORT = env.port;
 
+// Trust first proxy (e.g. ngrok, cloudflare, nginx) for accurate IP and protocol (HTTPS)
+app.set("trust proxy", 1);
+
 // Global Middleware: Helmet first, then CORS (including preflight), then JSON parsing
 app.use(helmetMiddleware);
 app.use(corsMiddleware);
