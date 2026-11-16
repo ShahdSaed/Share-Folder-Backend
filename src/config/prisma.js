@@ -11,9 +11,9 @@ const adapter = new PrismaMariaDb({
     connectionLimit: 5
 });
 
-const prismaPromise = import("../../generated/prisma/client.ts")
+const prismaPromise = import("../../generated/prisma/client.mts")
     .then(({ PrismaClient }) => new PrismaClient({ adapter }));
-
+    
 prismaPromise.getPrismaClient = () => prismaPromise;
 
-module.exports = prismaPromise;
+module.exports = prismaPromise;
