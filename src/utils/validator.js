@@ -1,14 +1,44 @@
 const validator = require("validator");
 const { BadRequestError } = require("./errors");
 
+const USERNAME_REGEX = /^(?=.{3,20}$)[a-zA-Z][a-zA-Z0-9]*(?:[._][a-zA-Z0-9]+)*$/;
+
 /**
- * Normalize and validate an email address.
+ * Normalize and validate a username.
+ * Rules:
+ * - 3 to 20 characters
+ * - Starts with an English letter
+ * - Contains only letters, numbers, underscore _, and dot .
+ * - No spaces
+ * - Does not end with . or _
+ * - No consecutive symbols (no .. or __ or ._ or _.)
+ * - Case-insensitive (normalized to lowercase)
+ * @param {string} username 
+ * @returns {string} normalized lowercase username
+ */
+function normalizeAndValidateUsername(username) {
+    if (!username || typeof username !== "string" || username.trim().length === 0) {
+        throw new BadRequestError("Username is required");
+    }
+
+    const trimmed = username.trim();
+    if (!USERNAME_REGEX.test(trimmed)) {
+        throw new BadRequestError(
+            "Username must be 3-20 characters, start with an English letter, contain only letters, numbers, dots, or underscores, and cannot end with or contain consecutive symbols"
+        );
+    }
+
+    return trimmed.toLowerCase();
+}
+
+/**
+ * Normalize and validate an email address (kept for legacy/optional support).
  * @param {string} email 
  * @returns {string} normalized email
  */
 function normalizeAndValidateEmail(email) {
-    if (!email || typeof email !== "string") {
-        throw new BadRequestError("Email is required and must be a string");
+    if (!email || typeof email !== "string" || email.trim().length === 0) {
+        throw new BadRequestError("Email is required");
     }
 
     const trimmed = email.trim();
@@ -16,7 +46,6 @@ function normalizeAndValidateEmail(email) {
         throw new BadRequestError("Invalid email format");
     }
 
-    // Normalize email: lowercase, trim whitespace
     const normalized = validator.normalizeEmail(trimmed, {
         all_lowercase: true,
         gmail_remove_dots: false
@@ -27,36 +56,39 @@ function normalizeAndValidateEmail(email) {
 
 /**
  * Validate login input payload.
+ * Accepts username or email and returns normalized identifier.
  * @param {object} body 
- * @returns {{ email: string, password: string }}
+ * @returns {{ username: string, email: string, password: string }}
  */
 function validateLoginInput(body) {
     if (!body || typeof body !== "object") {
         throw new BadRequestError("Request body is missing or malformed");
     }
 
-    const { email, password } = body;
+    const { username, email, password } = body;
+    const identifier = username || email;
 
-    if (!email || typeof email !== "string" || email.trim().length === 0) {
-        throw new BadRequestError("Email is required");
+    if (!identifier || typeof identifier !== "string" || identifier.trim().length === 0) {
+        throw new BadRequestError("Username is required");
     }
 
     if (!password || typeof password !== "string" || password.length === 0) {
         throw new BadRequestError("Password is required");
     }
 
-    if (email.length > 255) {
-        throw new BadRequestError("Email exceeds maximum allowable length");
+    if (identifier.length > 255) {
+        throw new BadRequestError("Username exceeds maximum allowable length");
     }
 
     if (password.length > 1024) {
         throw new BadRequestError("Password exceeds maximum allowable length");
     }
 
-    const normalizedEmail = normalizeAndValidateEmail(email);
+    const normalizedUsername = normalizeAndValidateUsername(identifier);
 
     return {
-        email: normalizedEmail,
+        username: normalizedUsername,
+        email: normalizedUsername,
         password
     };
 }
@@ -86,6 +118,8 @@ function validatePagination(query) {
 }
 
 module.exports = {
+    USERNAME_REGEX,
+    normalizeAndValidateUsername,
     normalizeAndValidateEmail,
     validateLoginInput,
     validatePagination

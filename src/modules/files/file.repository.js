@@ -42,7 +42,7 @@ class FileRepository {
                     select: {
                         id: true,
                         name: true,
-                        email: true
+                        username: true
                     }
                 }
             }
@@ -69,7 +69,7 @@ class FileRepository {
                     select: {
                         id: true,
                         name: true,
-                        email: true
+                        username: true
                     }
                 }
             }
@@ -120,7 +120,7 @@ class FileRepository {
                         select: {
                             id: true,
                             name: true,
-                            email: true
+                            username: true
                         }
                     }
                 }
@@ -175,7 +175,7 @@ class FileRepository {
                         select: {
                             id: true,
                             name: true,
-                            email: true
+                            username: true
                         }
                     }
                 }

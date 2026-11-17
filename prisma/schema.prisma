@@ -22,7 +22,7 @@ enum Role {
 model User {
   id           String   @id @default(uuid()) @db.VarChar(36)
   name         String   @db.VarChar(255)
-  email        String   @unique @db.VarChar(255)
+  username     String   @unique @db.VarChar(255)
   passwordHash String   @map("password_hash") @db.VarChar(255)
   role         Role     @default(VIEWER)
   isActive     Boolean  @default(true) @map("is_active")

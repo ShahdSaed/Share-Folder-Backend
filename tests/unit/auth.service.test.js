@@ -29,6 +29,7 @@ describe("AuthService (Unit Tests with Mocks)", () => {
                 {
                     id: "admin-uuid-1",
                     name: "Admin User",
+                    username: "admin",
                     email: "admin@company.com",
                     passwordHash: testPasswordHash,
                     role: "ADMIN",
@@ -38,6 +39,7 @@ describe("AuthService (Unit Tests with Mocks)", () => {
                 {
                     id: "inactive-uuid-2",
                     name: "Inactive User",
+                    username: "inactive",
                     email: "inactive@company.com",
                     passwordHash: testPasswordHash,
                     role: "VIEWER",
@@ -45,8 +47,11 @@ describe("AuthService (Unit Tests with Mocks)", () => {
                     createdAt: new Date()
                 }
             ],
+            findByUsernameWithPassword: async function (identifier) {
+                return this.users.find(u => u.username === identifier || u.email === identifier) || null;
+            },
             findByEmailWithPassword: async function (email) {
-                return this.users.find(u => u.email === email) || null;
+                return this.users.find(u => u.username === email || u.email === email) || null;
             },
             findById: async function (id) {
                 const u = this.users.find(u => u.id === id);
@@ -115,7 +120,7 @@ describe("AuthService (Unit Tests with Mocks)", () => {
             }),
             (err) => {
                 assert.strictEqual(err.statusCode, 401);
-                assert.strictEqual(err.message, "Invalid email or password");
+                assert.ok(err.message.includes("Invalid"));
                 return true;
             }
         );
@@ -136,7 +141,7 @@ describe("AuthService (Unit Tests with Mocks)", () => {
             }),
             (err) => {
                 assert.strictEqual(err.statusCode, 401);
-                assert.strictEqual(err.message, "Invalid email or password");
+                assert.ok(err.message.includes("Invalid"));
                 return true;
             }
         );

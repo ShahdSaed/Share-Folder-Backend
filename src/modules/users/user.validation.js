@@ -1,5 +1,5 @@
 const { BadRequestError } = require("../../utils/errors");
-const { normalizeAndValidateEmail } = require("../../utils/validator");
+const { normalizeAndValidateUsername } = require("../../utils/validator");
 
 const VALID_ROLES = ["ADMIN", "VIEWER"];
 
@@ -8,17 +8,18 @@ function validateCreateUserInput(body) {
         throw new BadRequestError("Request body must be a JSON object");
     }
 
-    const { name, email, password, role } = body;
+    const { name, username, email, password, role } = body;
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
         throw new BadRequestError("Full name is required");
     }
 
-    if (!email) {
-        throw new BadRequestError("Email address is required");
+    const identifier = username || email;
+    if (!identifier) {
+        throw new BadRequestError("Username is required");
     }
 
-    const normalizedEmail = normalizeAndValidateEmail(email);
+    const normalizedUsername = normalizeAndValidateUsername(identifier);
 
     if (!password || typeof password !== "string" || password.length < 8) {
         throw new BadRequestError("Password must be at least 8 characters long");
@@ -31,7 +32,7 @@ function validateCreateUserInput(body) {
 
     return {
         name: name.trim(),
-        email: normalizedEmail,
+        username: normalizedUsername,
         password,
         role: userRole
     };
@@ -51,6 +52,11 @@ function validateUpdateUserInput(body) {
         updates.name = body.name.trim();
     }
 
+    if (body.username !== undefined || body.email !== undefined) {
+        const identifier = body.username || body.email;
+        updates.username = normalizeAndValidateUsername(identifier);
+    }
+
     if (body.role !== undefined) {
         const role = body.role.toUpperCase();
         if (!VALID_ROLES.includes(role)) {
@@ -67,7 +73,7 @@ function validateUpdateUserInput(body) {
     }
 
     if (Object.keys(updates).length === 0) {
-        throw new BadRequestError("At least one valid field (name, role, isActive) must be provided to update");
+        throw new BadRequestError("At least one valid field (name, username, role, isActive) must be provided to update");
     }
 
     return updates;

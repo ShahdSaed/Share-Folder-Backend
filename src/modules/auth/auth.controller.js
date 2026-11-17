@@ -26,9 +26,9 @@ class AuthController {
 
     login = async (req, res, next) => {
         try {
-            const { email, password } = validateLoginInput(req.body);
+            const { username, password } = validateLoginInput(req.body);
             const result = await this.authService.login({
-                email,
+                username,
                 password,
                 ...clientMeta(req)
             });

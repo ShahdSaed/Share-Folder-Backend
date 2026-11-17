@@ -18,11 +18,12 @@ class UserService {
     /**
      * Create a new user (ADMIN only).
      */
-    async createUser({ name, email, password, role, adminUser, ipAddress, userAgent }) {
-        // 1. Check duplicate email
-        const existing = await this.userRepository.findByEmailWithPassword(email);
+    async createUser({ name, username, email, password, role, adminUser, ipAddress, userAgent }) {
+        const targetUsername = username || email;
+        // 1. Check duplicate username
+        const existing = await this.userRepository.findByUsernameWithPassword(targetUsername);
         if (existing) {
-            throw new ConflictError(`A user with email '${email}' already exists`);
+            throw new ConflictError(`A user with username '${targetUsername}' already exists`);
         }
 
         // 2. Hash password with Argon2id
@@ -31,7 +32,8 @@ class UserService {
         // 3. Create user in database
         const newUser = await this.userRepository.create({
             name,
-            email,
+            username: targetUsername,
+            email: targetUsername,
             passwordHash,
             role,
             isActive: true

@@ -221,7 +221,7 @@ describe("Audit Logs Module - Unit Tests", () => {
             assert.deepStrictEqual(capturedQuery.include.user.select, {
                 id: true,
                 name: true,
-                email: true,
+                username: true,
                 role: true
             });
         });

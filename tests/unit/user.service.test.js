@@ -7,7 +7,8 @@ describe("UserService (Unit Tests with Mocks)", () => {
     function createMockRepo(users = []) {
         const list = [...users];
         return {
-            findByEmailWithPassword: async (email) => list.find((u) => u.email === email) || null,
+            findByUsernameWithPassword: async (username) => list.find((u) => u.username === username || u.email === username) || null,
+            findByEmailWithPassword: async (email) => list.find((u) => u.email === email || u.username === email) || null,
             findById: async (id) => list.find((u) => u.id === id) || null,
             findPaginated: async () => ({ users: list, total: list.length }),
             create: async (data) => {
@@ -44,7 +45,7 @@ describe("UserService (Unit Tests with Mocks)", () => {
 
         const newUser = await service.createUser({
             name: "Jane Viewer",
-            email: "jane@company.com",
+            username: "jane.viewer",
             password: "SecurePassword123!",
             role: "VIEWER",
             adminUser,
@@ -53,20 +54,20 @@ describe("UserService (Unit Tests with Mocks)", () => {
         });
 
         assert.strictEqual(newUser.name, "Jane Viewer");
-        assert.strictEqual(newUser.email, "jane@company.com");
+        assert.strictEqual(newUser.username, "jane.viewer");
         assert.strictEqual(newUser.role, "VIEWER");
         assert.strictEqual(newUser.passwordHash, undefined, "Must NEVER return passwordHash");
     });
 
-    it("should reject duplicate email with ConflictError", async () => {
-        const repo = createMockRepo([{ id: "u-1", email: "existing@company.com" }]);
+    it("should reject duplicate username with ConflictError", async () => {
+        const repo = createMockRepo([{ id: "u-1", username: "existing.user" }]);
         const service = new (require("../../src/modules/users/user.service").constructor)(repo, mockAuditService);
 
         await assert.rejects(
             async () => {
                 await service.createUser({
                     name: "Existing",
-                    email: "existing@company.com",
+                    username: "existing.user",
                     password: "SecurePassword123!",
                     role: "VIEWER",
                     adminUser

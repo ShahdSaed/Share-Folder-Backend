@@ -6,14 +6,43 @@ class UserRepository {
     }
 
     /**
-     * Find a user by normalized email including their password hash for auth verification.
-     * @param {string} email 
+     * Find a user by normalized username including their password hash for auth verification.
+     * @param {string} username 
      * @returns {Promise<object|null>}
      */
-    async findByEmailWithPassword(email) {
+    async findByUsernameWithPassword(username) {
         const prisma = await this.getPrisma();
         return await prisma.user.findUnique({
-            where: { email }
+            where: { username }
+        });
+    }
+
+    /**
+     * Legacy alias for findByUsernameWithPassword.
+     * @param {string} identifier 
+     * @returns {Promise<object|null>}
+     */
+    async findByEmailWithPassword(identifier) {
+        return await this.findByUsernameWithPassword(identifier);
+    }
+
+    /**
+     * Find a user by username without password hash.
+     * @param {string} username 
+     * @returns {Promise<object|null>}
+     */
+    async findByUsername(username) {
+        const prisma = await this.getPrisma();
+        return await prisma.user.findUnique({
+            where: { username },
+            select: {
+                id: true,
+                name: true,
+                username: true,
+                role: true,
+                isActive: true,
+                createdAt: true
+            }
         });
     }
 
@@ -29,7 +58,7 @@ class UserRepository {
             select: {
                 id: true,
                 name: true,
-                email: true,
+                username: true,
                 role: true,
                 isActive: true,
                 createdAt: true
@@ -70,7 +99,7 @@ class UserRepository {
         if (search) {
             where.OR = [
                 { name: { contains: search } },
-                { email: { contains: search } }
+                { username: { contains: search } }
             ];
         }
 
@@ -83,7 +112,7 @@ class UserRepository {
                 select: {
                     id: true,
                     name: true,
-                    email: true,
+                    username: true,
                     role: true,
                     isActive: true,
                     createdAt: true
@@ -105,7 +134,7 @@ class UserRepository {
         return await prisma.user.create({
             data: {
                 name: userData.name,
-                email: userData.email,
+                username: userData.username,
                 passwordHash: userData.passwordHash,
                 role: userData.role || "VIEWER",
                 isActive: userData.isActive !== undefined ? userData.isActive : true
@@ -113,7 +142,7 @@ class UserRepository {
             select: {
                 id: true,
                 name: true,
-                email: true,
+                username: true,
                 role: true,
                 isActive: true,
                 createdAt: true
@@ -132,6 +161,7 @@ class UserRepository {
         const updateData = {};
 
         if (data.name !== undefined) updateData.name = data.name;
+        if (data.username !== undefined) updateData.username = data.username;
         if (data.role !== undefined) updateData.role = data.role;
         if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
@@ -141,7 +171,7 @@ class UserRepository {
             select: {
                 id: true,
                 name: true,
-                email: true,
+                username: true,
                 role: true,
                 isActive: true,
                 createdAt: true
@@ -163,7 +193,7 @@ class UserRepository {
             select: {
                 id: true,
                 name: true,
-                email: true,
+                username: true,
                 role: true,
                 isActive: true,
                 createdAt: true
@@ -185,7 +215,7 @@ class UserRepository {
             select: {
                 id: true,
                 name: true,
-                email: true,
+                username: true,
                 role: true,
                 isActive: true,
                 createdAt: true

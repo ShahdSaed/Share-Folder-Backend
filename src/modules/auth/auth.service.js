@@ -7,14 +7,15 @@ const { signToken } = require("../../utils/jwt");
 const { generateRefreshToken } = require("../../utils/refresh-token");
 const { UnauthorizedError, NotFoundError, BadRequestError } = require("../../utils/errors");
 
-const GENERIC_AUTH_ERROR = "Invalid email or password";
+const GENERIC_AUTH_ERROR = "Invalid username or password";
 const GENERIC_REFRESH_ERROR = "Invalid refresh token";
 
 function safeUser(user) {
     return {
         id: user.id,
         name: user.name,
-        email: user.email,
+        username: user.username,
+        email: user.email || user.username,
         role: user.role,
         isActive: user.isActive,
         createdAt: user.createdAt
@@ -52,8 +53,9 @@ class AuthService {
         return { accessToken, refreshToken, expiresIn: env.jwt.expiresIn, user: safeUser(user) };
     }
 
-    async login({ email, password, ipAddress, userAgent }) {
-        const user = await this.userRepository.findByEmailWithPassword(email);
+    async login({ username, email, password, ipAddress, userAgent }) {
+        const targetUsername = username || email;
+        const user = await this.userRepository.findByUsernameWithPassword(targetUsername);
 
         if (!user) {
             await this.auditLogService.logEvent({

@@ -5,7 +5,7 @@ const GRANT_USER_INCLUDE = {
         select: {
             id: true,
             name: true,
-            email: true,
+            username: true,
             role: true
         }
     }
@@ -55,7 +55,7 @@ class FileAccessRepository {
                     select: {
                         id: true,
                         name: true,
-                        email: true,
+                        username: true,
                         role: true,
                         isActive: true
                     }

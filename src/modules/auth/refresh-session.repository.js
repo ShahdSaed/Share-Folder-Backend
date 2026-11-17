@@ -28,7 +28,7 @@ class RefreshSessionRepository {
                     select: {
                         id: true,
                         name: true,
-                        email: true,
+                        username: true,
                         role: true,
                         isActive: true,
                         createdAt: true
@@ -57,7 +57,7 @@ class RefreshSessionRepository {
                         select: {
                             id: true,
                             name: true,
-                            email: true,
+                            username: true,
                             role: true,
                             isActive: true,
                             createdAt: true

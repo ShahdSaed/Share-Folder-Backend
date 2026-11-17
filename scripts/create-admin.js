@@ -17,7 +17,7 @@ const readline = require("readline");
 const userRepository = require("../src/modules/users/user.repository");
 const auditLogService = require("../src/modules/audit-logs/audit-log.service");
 const { hashPassword } = require("../src/utils/password");
-const { normalizeAndValidateEmail } = require("../src/utils/validator");
+const { normalizeAndValidateUsername } = require("../src/utils/validator");
 const prismaPromise = require("../src/config/prisma");
 
 function parseArgs() {
@@ -26,8 +26,8 @@ function parseArgs() {
     for (let i = 0; i < args.length; i++) {
         if (args[i] === "--name" && args[i + 1]) {
             parsed.name = args[++i];
-        } else if (args[i] === "--email" && args[i + 1]) {
-            parsed.email = args[++i];
+        } else if ((args[i] === "--username" || args[i] === "--email") && args[i + 1]) {
+            parsed.username = args[++i];
         } else if (args[i] === "--password" && args[i + 1]) {
             parsed.password = args[++i];
         }
@@ -90,7 +90,7 @@ async function run() {
     const args = parseArgs();
 
     let name = args.name || process.env.ADMIN_NAME;
-    let email = args.email || process.env.ADMIN_EMAIL;
+    let username = args.username || process.env.ADMIN_USERNAME || process.env.ADMIN_EMAIL;
     let password = args.password || process.env.ADMIN_PASSWORD;
 
     if (!name) {
@@ -101,13 +101,13 @@ async function run() {
         process.exit(1);
     }
 
-    if (!email) {
-        email = await prompt("Enter administrator email: ");
+    if (!username) {
+        username = await prompt("Enter administrator username: ");
     }
 
-    let normalizedEmail;
+    let normalizedUsername;
     try {
-        normalizedEmail = normalizeAndValidateEmail(email);
+        normalizedUsername = normalizeAndValidateUsername(username);
     } catch (err) {
         console.error(`❌ Error: ${err.message}`);
         process.exit(1);
@@ -124,9 +124,9 @@ async function run() {
 
     try {
         // 1. Check if user already exists
-        const existing = await userRepository.findByEmailWithPassword(normalizedEmail);
+        const existing = await userRepository.findByUsernameWithPassword(normalizedUsername);
         if (existing) {
-            console.error(`❌ Error: A user with email '${normalizedEmail}' already exists.`);
+            console.error(`❌ Error: A user with username '${normalizedUsername}' already exists.`);
             console.error("   Existing accounts are never automatically promoted. Aborting.");
             process.exit(1);
         }
@@ -137,7 +137,7 @@ async function run() {
         console.log("💾 Creating administrator account in MySQL...");
         const adminUser = await userRepository.create({
             name: name.trim(),
-            email: normalizedEmail,
+            username: normalizedUsername,
             passwordHash,
             role: "ADMIN",
             isActive: true
@@ -155,10 +155,10 @@ async function run() {
         });
 
         console.log("✅ Administrator provisioned successfully!");
-        console.log(`   ID:    ${adminUser.id}`);
-        console.log(`   Name:  ${adminUser.name}`);
-        console.log(`   Email: ${adminUser.email}`);
-        console.log(`   Role:  ${adminUser.role}`);
+        console.log(`   ID:       ${adminUser.id}`);
+        console.log(`   Name:     ${adminUser.name}`);
+        console.log(`   Username: ${adminUser.username}`);
+        console.log(`   Role:     ${adminUser.role}`);
         console.log("==================================================");
     } catch (error) {
         console.error("❌ Failed to provision administrator:", error.message);
