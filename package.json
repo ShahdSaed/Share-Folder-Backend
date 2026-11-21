@@ -11,6 +11,7 @@
     "test:integration": "node --test tests/integration/**/*.test.js",
     "test:all": "node --test tests/**/*.test.js",
     "admin:create": "node scripts/create-admin.js",
+    "storage:upload-local": "node scripts/upload-local-files-to-r2.js",
     "db:generate": "prisma generate --config prisma7.config.ts",
     "db:format": "prisma format --config prisma7.config.ts",
     "db:migrate": "prisma migrate dev --config prisma7.config.ts",
@@ -22,6 +23,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1175.0",
     "@prisma/adapter-mariadb": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "argon2": "^0.45.1",

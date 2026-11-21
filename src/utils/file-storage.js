@@ -4,7 +4,11 @@ const crypto = require("crypto");
 const multer = require("multer");
 const { BadRequestError } = require("./errors");
 
-const STORAGE_DIR = path.resolve(__dirname, "../../storage/private");
+// STORAGE_DIR env lets production point at a persistent disk (e.g. Render Disk mounted at /var/data).
+// Defaults to backend/storage/private for local development.
+const STORAGE_DIR = process.env.STORAGE_DIR
+    ? path.resolve(process.env.STORAGE_DIR)
+    : path.resolve(__dirname, "../../storage/private");
 
 // Ensure private storage directory exists
 if (!fs.existsSync(STORAGE_DIR)) {

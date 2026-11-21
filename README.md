@@ -46,7 +46,7 @@ Database (MySQL / MariaDB) & Secure Disk Storage
 Copy `.env.example` to `.env` and fill in your values:
 
 ```env
-PORT=5000
+PORT=3000
 NODE_ENV=development
 
 # Database connection URL
@@ -337,7 +337,7 @@ import { Observable } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class FileService {
-  private baseUrl = 'http://localhost:5000/api/v1/files';
+  private baseUrl = 'http://localhost:3000/api/v1/files';
 
   constructor(private http: HttpClient) {}
 

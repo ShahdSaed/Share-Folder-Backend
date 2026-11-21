@@ -1,5 +1,4 @@
 const path = require("path");
-const fs = require("fs");
 const contentDisposition = require("content-disposition");
 const fileService = require("./file.service");
 const {
@@ -228,7 +227,7 @@ class FileController {
             const ipAddress = req.ip || req.socket?.remoteAddress || null;
             const userAgent = req.headers["user-agent"] || null;
 
-            const { filePath, name, mimeType, size } = await this.fileService.getFileContent(
+            const { stream, name, mimeType, size } = await this.fileService.getFileContent(
                 req.params.id,
                 req.user,
                 unlockToken,
@@ -245,13 +244,18 @@ class FileController {
                 ? contentDisposition.create(name, { type: disposition })
                 : contentDisposition(name, { type: disposition });
             res.setHeader("Content-Disposition", dispositionHeader);
+            // Protected content must never be cached by browsers or proxies
+            res.setHeader("Cache-Control", "no-store, private");
 
-            // Stream private file
-            const fileStream = fs.createReadStream(filePath);
-            fileStream.on("error", (streamErr) => {
-                next(streamErr);
+            // Stream private file (from local disk or R2)
+            stream.on("error", (streamErr) => {
+                if (res.headersSent) {
+                    res.destroy(streamErr);
+                } else {
+                    next(streamErr);
+                }
             });
-            fileStream.pipe(res);
+            stream.pipe(res);
         } catch (error) {
             next(error);
         }

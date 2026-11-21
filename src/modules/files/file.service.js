@@ -1,9 +1,9 @@
-const fs = require("fs");
 const fileRepository = require("./file.repository");
 const auditLogService = require("../audit-logs/audit-log.service");
 const { hashPassword, verifyPassword } = require("../../utils/password");
-const { signFileUnlockToken, verifyFileUnlockToken, FILE_UNLOCK_EXPIRATION } = require("../../utils/jwt");
-const { removeStoredFile, getPrivateFilePath } = require("../../utils/file-storage");
+const { signFileUnlockToken, verifyFileUnlockToken, FILE_UNLOCK_EXPIRATION_SECONDS } = require("../../utils/jwt");
+const { removeStoredFile } = require("../../utils/file-storage");
+const { persistUploadedFile, openFileStream, deleteStoredFile } = require("../../utils/object-storage");
 const { NotFoundError, ForbiddenError, UnauthorizedError } = require("../../utils/errors");
 
 class FileService {
@@ -24,6 +24,18 @@ class FileService {
             throw err;
         }
 
+        // Move the validated upload to persistent storage (R2 in production) before recording it
+        try {
+            await persistUploadedFile({
+                storageKey: file.filename,
+                mimeType: file.mimetype,
+                size: file.size
+            });
+        } catch (storageError) {
+            removeStoredFile(file.filename);
+            throw storageError;
+        }
+
         let newFile;
         try {
             newFile = await this.fileRepository.create({
@@ -35,8 +47,8 @@ class FileService {
                 uploadedBy: adminUser.id
             });
         } catch (dbError) {
-            // Clean up private file from disk if database insert fails
-            removeStoredFile(file.filename);
+            // Clean up the stored file (disk or R2) if database insert fails
+            await deleteStoredFile(file.filename);
             throw dbError;
         }
 
@@ -146,7 +158,7 @@ class FileService {
         }
 
         await this.fileRepository.delete(id);
-        removeStoredFile(file.storageKey);
+        await deleteStoredFile(file.storageKey);
 
         await this.auditLogService.logEvent({
             userId: adminUser.id,
@@ -248,7 +260,8 @@ class FileService {
         return {
             unlocked: true,
             unlockToken,
-            expiresIn: FILE_UNLOCK_EXPIRATION
+            expiresIn: `${FILE_UNLOCK_EXPIRATION_SECONDS / 60}m`, // kept for backward compatibility
+            expiresInSeconds: FILE_UNLOCK_EXPIRATION_SECONDS
         };
     }
 
@@ -275,12 +288,8 @@ class FileService {
             });
         }
 
-        // Resolve absolute storage path
-        const filePath = getPrivateFilePath(file.storageKey);
-
-        if (!fs.existsSync(filePath)) {
-            throw new NotFoundError("Physical file is missing from private storage");
-        }
+        // Open the stored object (local disk or R2); throws NotFoundError if missing
+        const stream = await openFileStream(file.storageKey);
 
         await this.auditLogService.logEvent({
             userId: user.id,
@@ -293,7 +302,7 @@ class FileService {
         });
 
         return {
-            filePath,
+            stream,
             name: file.name,
             mimeType: file.mimeType,
             size: file.size

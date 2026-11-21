@@ -18,8 +18,9 @@ const { errorHandler, notFoundHandler } = require("./src/middlewares/error.middl
 const app = express();
 const PORT = env.port;
 
-// Trust first proxy (e.g. ngrok, cloudflare, nginx) for accurate IP and protocol (HTTPS)
-app.set("trust proxy", 1);
+// Trust reverse proxies (Render, Vercel rewrite, nginx…) for accurate client IP and protocol (HTTPS).
+// Configured via TRUST_PROXY (default 1). Use 2 when the frontend proxies /api through Vercel.
+app.set("trust proxy", env.trustProxy);
 
 // Global Middleware: Helmet first, then CORS (including preflight), then JSON parsing
 app.use(helmetMiddleware);

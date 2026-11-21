@@ -3,7 +3,8 @@ const env = require("../config/env");
 const { UnauthorizedError, ForbiddenError } = require("./errors");
 
 const ALLOWED_ALGORITHM = "HS256";
-const FILE_UNLOCK_EXPIRATION = "15m";
+const FILE_UNLOCK_EXPIRATION_SECONDS = 15 * 60;
+const FILE_UNLOCK_EXPIRATION = FILE_UNLOCK_EXPIRATION_SECONDS; // jsonwebtoken treats numbers as seconds
 const TOKEN_TYPE_ACCESS = "ACCESS";
 const TOKEN_TYPE_FILE_UNLOCK = "FILE_UNLOCK";
 
@@ -103,6 +104,7 @@ module.exports = {
     verifyFileUnlockToken,
     ALLOWED_ALGORITHM,
     FILE_UNLOCK_EXPIRATION,
+    FILE_UNLOCK_EXPIRATION_SECONDS,
     TOKEN_TYPE_ACCESS,
     TOKEN_TYPE_FILE_UNLOCK
 };
