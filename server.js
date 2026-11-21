@@ -18,8 +18,8 @@ const { errorHandler, notFoundHandler } = require("./src/middlewares/error.middl
 const app = express();
 const PORT = env.port;
 
-// Trust reverse proxies (Render, Vercel rewrite, nginx…) for accurate client IP and protocol (HTTPS).
-// Configured via TRUST_PROXY (default 1). Use 2 when the frontend proxies /api through Vercel.
+// Trust reverse proxies (Render) for accurate client IP and protocol (HTTPS).
+// Configured via TRUST_PROXY (default 1). Use 2 when the frontend static site proxies /api via a Render rewrite.
 app.set("trust proxy", env.trustProxy);
 
 // Global Middleware: Helmet first, then CORS (including preflight), then JSON parsing

@@ -3,7 +3,7 @@ const auditLogService = require("../audit-logs/audit-log.service");
 const { hashPassword, verifyPassword } = require("../../utils/password");
 const { signFileUnlockToken, verifyFileUnlockToken, FILE_UNLOCK_EXPIRATION_SECONDS } = require("../../utils/jwt");
 const { removeStoredFile } = require("../../utils/file-storage");
-const { persistUploadedFile, openFileStream, deleteStoredFile } = require("../../utils/object-storage");
+const { openFileStream, deleteStoredFile } = require("../../utils/object-storage");
 const { NotFoundError, ForbiddenError, UnauthorizedError } = require("../../utils/errors");
 
 class FileService {
@@ -24,18 +24,6 @@ class FileService {
             throw err;
         }
 
-        // Move the validated upload to persistent storage (R2 in production) before recording it
-        try {
-            await persistUploadedFile({
-                storageKey: file.filename,
-                mimeType: file.mimetype,
-                size: file.size
-            });
-        } catch (storageError) {
-            removeStoredFile(file.filename);
-            throw storageError;
-        }
-
         let newFile;
         try {
             newFile = await this.fileRepository.create({
@@ -47,7 +35,7 @@ class FileService {
                 uploadedBy: adminUser.id
             });
         } catch (dbError) {
-            // Clean up the stored file (disk or R2) if database insert fails
+            // Clean up the stored file if database insert fails
             await deleteStoredFile(file.filename);
             throw dbError;
         }
