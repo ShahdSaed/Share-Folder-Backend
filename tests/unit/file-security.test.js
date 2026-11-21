@@ -270,4 +270,42 @@ describe("File Storage & Security Unit Tests", () => {
             assert.strictEqual(result.name, "New Title.pdf");
         });
     });
+
+    describe("File Description Validation", () => {
+        it("should store a trimmed description on upload and default to null when absent", () => {
+            const withDesc = validateUploadInput(
+                { originalname: "Report.pdf" },
+                { password: "SecurePassword123", description: "  Quarterly report  " }
+            );
+            assert.strictEqual(withDesc.description, "Quarterly report");
+
+            const withoutDesc = validateUploadInput(
+                { originalname: "Report.pdf" },
+                { password: "SecurePassword123" }
+            );
+            assert.strictEqual(withoutDesc.description, null);
+        });
+
+        it("should reject descriptions longer than 1000 characters", () => {
+            assert.throws(
+                () => validateUploadInput(
+                    { originalname: "Report.pdf" },
+                    { password: "SecurePassword123", description: "a".repeat(1001) }
+                ),
+                (err) => err instanceof BadRequestError && err.message.includes("1000")
+            );
+        });
+
+        it("should allow updating only the description, and clear it with an empty string", () => {
+            assert.deepStrictEqual(validateUpdateFileInput({ description: "New notes" }), { description: "New notes" });
+            assert.deepStrictEqual(validateUpdateFileInput({ description: "   " }), { description: null });
+        });
+
+        it("should reject an update with neither name nor description", () => {
+            assert.throws(
+                () => validateUpdateFileInput({}),
+                (err) => err instanceof BadRequestError
+            );
+        });
+    });
 });

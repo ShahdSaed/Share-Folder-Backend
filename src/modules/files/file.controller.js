@@ -33,13 +33,14 @@ class FileController {
             }
 
             // 2. Validate display name and protection password
-            const { name, password } = validateUploadInput(req.file, req.body);
+            const { name, description, password } = validateUploadInput(req.file, req.body);
             const ipAddress = req.ip || req.socket?.remoteAddress || null;
             const userAgent = req.headers["user-agent"] || null;
 
             const file = await this.fileService.uploadFile({
                 file: req.file,
                 name,
+                description,
                 password,
                 adminUser: req.user,
                 ipAddress,

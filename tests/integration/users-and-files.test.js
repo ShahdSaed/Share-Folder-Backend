@@ -18,8 +18,8 @@ describe("Users and Files Integration Tests", () => {
     let uploadedFileId;
     let unlockToken;
 
-    const ADMIN_EMAIL = "test-files-admin@company.com";
-    const VIEWER_EMAIL = "test-files-viewer@company.com";
+    const ADMIN_USERNAME = "ftest.admin";
+    const VIEWER_USERNAME = "ftest.viewer";
     const PASSWORD = "SecurePassword123!";
     const FILE_PASSWORD = "FileSecretPassword123!";
 
@@ -28,7 +28,7 @@ describe("Users and Files Integration Tests", () => {
 
         // Cleanup any leftovers from prior runs
         const existingUsers = await prisma.user.findMany({
-            where: { email: { in: [ADMIN_EMAIL, VIEWER_EMAIL, "created-viewer@company.com"] } }
+            where: { username: { in: [ADMIN_USERNAME, VIEWER_USERNAME, "ftest.created"] } }
         });
         const userIds = existingUsers.map((u) => u.id);
 
@@ -44,7 +44,7 @@ describe("Users and Files Integration Tests", () => {
         const admin = await prisma.user.create({
             data: {
                 name: "Files Test Admin",
-                email: ADMIN_EMAIL,
+                username: ADMIN_USERNAME,
                 passwordHash,
                 role: "ADMIN",
                 isActive: true
@@ -55,7 +55,7 @@ describe("Users and Files Integration Tests", () => {
         const viewer = await prisma.user.create({
             data: {
                 name: "Files Test Viewer",
-                email: VIEWER_EMAIL,
+                username: VIEWER_USERNAME,
                 passwordHash,
                 role: "VIEWER",
                 isActive: true
@@ -76,7 +76,7 @@ describe("Users and Files Integration Tests", () => {
         const adminLoginRes = await fetch(`${baseUrl}/api/v1/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: ADMIN_EMAIL, password: PASSWORD })
+            body: JSON.stringify({ username: ADMIN_USERNAME, password: PASSWORD })
         });
         const adminLoginData = await adminLoginRes.json();
         adminToken = adminLoginData.data.token;
@@ -85,7 +85,7 @@ describe("Users and Files Integration Tests", () => {
         const viewerLoginRes = await fetch(`${baseUrl}/api/v1/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: VIEWER_EMAIL, password: PASSWORD })
+            body: JSON.stringify({ username: VIEWER_USERNAME, password: PASSWORD })
         });
         const viewerLoginData = await viewerLoginRes.json();
         viewerToken = viewerLoginData.data.token;
@@ -94,7 +94,7 @@ describe("Users and Files Integration Tests", () => {
     after(async () => {
         if (prisma) {
             const users = await prisma.user.findMany({
-                where: { email: { in: [ADMIN_EMAIL, VIEWER_EMAIL, "created-viewer@company.com"] } }
+                where: { username: { in: [ADMIN_USERNAME, VIEWER_USERNAME, "ftest.created"] } }
             });
             const userIds = users.map((u) => u.id);
 
@@ -124,7 +124,7 @@ describe("Users and Files Integration Tests", () => {
                 },
                 body: JSON.stringify({
                     name: "Created Viewer",
-                    email: "created-viewer@company.com",
+                    username: "ftest.created",
                     password: "Password123!",
                     role: "VIEWER"
                 })
@@ -133,7 +133,7 @@ describe("Users and Files Integration Tests", () => {
             assert.strictEqual(res.status, 201);
             const data = await res.json();
             assert.strictEqual(data.status, "success");
-            assert.strictEqual(data.data.user.email, "created-viewer@company.com");
+            assert.strictEqual(data.data.user.username, "ftest.created");
             assert.strictEqual(data.data.user.passwordHash, undefined, "passwordHash must never be exposed");
             createdUserId = data.data.user.id;
         });
@@ -147,7 +147,7 @@ describe("Users and Files Integration Tests", () => {
                 },
                 body: JSON.stringify({
                     name: "Hacker Account",
-                    email: "hacker@company.com",
+                    username: "hacker.account",
                     password: "Password123!",
                     role: "ADMIN"
                 })
@@ -201,6 +201,7 @@ describe("Users and Files Integration Tests", () => {
             formData.append("file", fileBlob, "AuditReport.txt");
             formData.append("password", FILE_PASSWORD);
             formData.append("name", "Q3 Financial Audit.txt");
+            formData.append("description", "  Internal audit for Q3  ");
 
             const res = await fetch(`${baseUrl}/api/v1/files`, {
                 method: "POST",
@@ -212,6 +213,7 @@ describe("Users and Files Integration Tests", () => {
             const data = await res.json();
             assert.strictEqual(data.status, "success");
             assert.strictEqual(data.data.file.name, "Q3 Financial Audit.txt");
+            assert.strictEqual(data.data.file.description, "Internal audit for Q3");
             assert.strictEqual(data.data.file.passwordHash, undefined, "passwordHash must never be exposed");
             assert.strictEqual(typeof data.data.file.size, "number", "size must be serialized as number, not BigInt");
 
@@ -438,12 +440,40 @@ describe("Users and Files Integration Tests", () => {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${adminToken}`
                 },
-                body: JSON.stringify({ name: "Q3 Financial Audit - Final.txt" })
+                body: JSON.stringify({ name: "Q3 Financial Audit - Final.txt", description: "Final version" })
             });
 
             assert.strictEqual(res.status, 200);
             const data = await res.json();
             assert.strictEqual(data.data.file.name, "Q3 Financial Audit - Final.txt");
+            assert.strictEqual(data.data.file.description, "Final version");
+            assert.ok(data.data.file.uploader?.name, "uploader must be returned so the UI keeps the uploader's name");
+        });
+
+        it("should find files by description in search (GET /api/v1/files?search=)", async () => {
+            const res = await fetch(`${baseUrl}/api/v1/files?search=Final%20version`, {
+                headers: { Authorization: `Bearer ${adminToken}` }
+            });
+
+            assert.strictEqual(res.status, 200);
+            const data = await res.json();
+            assert.ok(data.data.files.some((f) => f.id === uploadedFileId));
+        });
+
+        it("should clear the description when an empty string is sent", async () => {
+            const res = await fetch(`${baseUrl}/api/v1/files/${uploadedFileId}`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${adminToken}`
+                },
+                body: JSON.stringify({ description: "" })
+            });
+
+            assert.strictEqual(res.status, 200);
+            const data = await res.json();
+            assert.strictEqual(data.data.file.description, null);
+            assert.strictEqual(data.data.file.name, "Q3 Financial Audit - Final.txt", "name must be unchanged");
         });
 
         it("should allow ADMIN to revoke access grant (DELETE /api/v1/files/:id/access/:userId)", async () => {

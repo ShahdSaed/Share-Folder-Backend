@@ -24,6 +24,7 @@ class FileRepository {
         const file = await prisma.file.create({
             data: {
                 name: data.name,
+                description: data.description ?? null,
                 storageKey: data.storageKey,
                 mimeType: data.mimeType,
                 size: BigInt(data.size),
@@ -33,6 +34,7 @@ class FileRepository {
             select: {
                 id: true,
                 name: true,
+                description: true,
                 mimeType: true,
                 size: true,
                 uploadedBy: true,
@@ -60,6 +62,7 @@ class FileRepository {
             select: {
                 id: true,
                 name: true,
+                description: true,
                 mimeType: true,
                 size: true,
                 uploadedBy: true,
@@ -96,7 +99,10 @@ class FileRepository {
         const where = {};
 
         if (search) {
-            where.name = { contains: search };
+            where.OR = [
+                { name: { contains: search } },
+                { description: { contains: search } }
+            ];
         }
         if (mimeType) {
             where.mimeType = mimeType;
@@ -111,6 +117,7 @@ class FileRepository {
                 select: {
                     id: true,
                     name: true,
+                    description: true,
                     mimeType: true,
                     size: true,
                     uploadedBy: true,
@@ -151,7 +158,10 @@ class FileRepository {
         };
 
         if (search) {
-            where.name = { contains: search };
+            where.OR = [
+                { name: { contains: search } },
+                { description: { contains: search } }
+            ];
         }
         if (mimeType) {
             where.mimeType = mimeType;
@@ -166,6 +176,7 @@ class FileRepository {
                 select: {
                     id: true,
                     name: true,
+                    description: true,
                     mimeType: true,
                     size: true,
                     uploadedBy: true,
@@ -215,16 +226,26 @@ class FileRepository {
         const file = await prisma.file.update({
             where: { id },
             data: {
-                name: data.name
+                ...(data.name !== undefined && { name: data.name }),
+                ...(data.description !== undefined && { description: data.description })
             },
             select: {
                 id: true,
                 name: true,
+                description: true,
                 mimeType: true,
                 size: true,
                 uploadedBy: true,
                 createdAt: true,
-                updatedAt: true
+                updatedAt: true,
+                // Include uploader so the UI keeps showing the uploader's name after an edit
+                uploader: {
+                    select: {
+                        id: true,
+                        name: true,
+                        username: true
+                    }
+                }
             }
         });
         return this.formatFile(file);

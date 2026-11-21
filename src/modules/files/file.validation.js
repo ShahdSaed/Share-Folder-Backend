@@ -3,6 +3,7 @@ const { BadRequestError } = require("../../utils/errors");
 const MIN_FILE_PASSWORD_LENGTH = 8;
 const MAX_FILE_PASSWORD_LENGTH = 128;
 const MAX_FILE_NAME_LENGTH = 255;
+const MAX_FILE_DESCRIPTION_LENGTH = 1000;
 
 /**
  * Validate a file protection password string.
@@ -55,6 +56,33 @@ function validateDisplayName(name) {
     return trimmed;
 }
 
+/**
+ * Validate an optional file description.
+ * Returns undefined when not provided, null when cleared (empty), or the trimmed string.
+ * @param {any} description
+ * @returns {string|null|undefined}
+ */
+function validateDescription(description) {
+    if (description === undefined) {
+        return undefined;
+    }
+    if (description === null) {
+        return null;
+    }
+    if (typeof description !== "string") {
+        throw new BadRequestError("File description must be a string");
+    }
+
+    const trimmed = description.trim();
+    if (trimmed.length === 0) {
+        return null;
+    }
+    if (trimmed.length > MAX_FILE_DESCRIPTION_LENGTH) {
+        throw new BadRequestError(`File description must not exceed ${MAX_FILE_DESCRIPTION_LENGTH} characters`);
+    }
+    return trimmed;
+}
+
 function validateUploadInput(file, body) {
     if (!file) {
         throw new BadRequestError("File is required in multipart form data (field name: 'file')");
@@ -85,6 +113,7 @@ function validateUploadInput(file, body) {
 
     return {
         name: displayName,
+        description: validateDescription(body.description) ?? null,
         password
     };
 }
@@ -94,15 +123,22 @@ function validateUpdateFileInput(body) {
         throw new BadRequestError("Request body must be a JSON object");
     }
 
-    if (body.name === undefined || body.name === null) {
-        throw new BadRequestError("Valid file name is required");
+    const updates = {};
+
+    if (body.name !== undefined && body.name !== null) {
+        updates.name = validateDisplayName(body.name);
     }
 
-    const name = validateDisplayName(body.name);
+    const description = validateDescription(body.description);
+    if (description !== undefined) {
+        updates.description = description;
+    }
 
-    return {
-        name
-    };
+    if (Object.keys(updates).length === 0) {
+        throw new BadRequestError("Valid file name or description is required");
+    }
+
+    return updates;
 }
 
 function validateFilePasswordInput(body) {
@@ -123,7 +159,9 @@ module.exports = {
     validateFilePasswordInput,
     validateFilePassword,
     validateDisplayName,
+    validateDescription,
     MIN_FILE_PASSWORD_LENGTH,
     MAX_FILE_PASSWORD_LENGTH,
-    MAX_FILE_NAME_LENGTH
+    MAX_FILE_NAME_LENGTH,
+    MAX_FILE_DESCRIPTION_LENGTH
 };

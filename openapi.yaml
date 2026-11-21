@@ -501,6 +501,10 @@ paths:
                 name:
                   type: string
                   description: Optional custom display name
+                description:
+                  type: string
+                  maxLength: 1000
+                  description: Optional file description
       responses:
         "201":
           description: File uploaded successfully
@@ -564,11 +568,16 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name]
+              description: At least one of name or description is required
               properties:
                 name:
                   type: string
                   example: Q4-Financial-Report-Updated.pdf
+                description:
+                  type: string
+                  nullable: true
+                  maxLength: 1000
+                  description: Empty string or null clears the description
       responses:
         "200":
           description: File renamed successfully
@@ -893,6 +902,10 @@ components:
           type: string
         name:
           type: string
+        description:
+          type: string
+          nullable: true
+          maxLength: 1000
         mimeType:
           type: string
         size:

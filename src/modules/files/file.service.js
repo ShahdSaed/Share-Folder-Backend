@@ -15,7 +15,7 @@ class FileService {
     /**
      * Upload and encrypt file with password protection (ADMIN only).
      */
-    async uploadFile({ file, name, password, adminUser, ipAddress, userAgent }) {
+    async uploadFile({ file, name, description, password, adminUser, ipAddress, userAgent }) {
         let passwordHash;
         try {
             passwordHash = await hashPassword(password);
@@ -28,6 +28,7 @@ class FileService {
         try {
             newFile = await this.fileRepository.create({
                 name: name || file.originalname,
+                description: description ?? null,
                 storageKey: file.filename,
                 mimeType: file.mimetype,
                 size: file.size,

@@ -26,24 +26,24 @@ describe("API Integration Tests", () => {
         // Create isolated test users
         const passwordHash = await hashPassword("TestPassword123!");
 
-        // Remove any prior test users with these emails
+        // Remove any prior test users with these usernames
         await prisma.auditLog.deleteMany({
             where: {
                 user: {
-                    email: { in: ["test-admin-integration@company.com", "test-viewer-integration@company.com"] }
+                    username: { in: ["itest.admin", "itest.viewer"] }
                 }
             }
         });
         await prisma.user.deleteMany({
             where: {
-                email: { in: ["test-admin-integration@company.com", "test-viewer-integration@company.com"] }
+                username: { in: ["itest.admin", "itest.viewer"] }
             }
         });
 
         testAdminUser = await prisma.user.create({
             data: {
                 name: "Integration Admin",
-                email: "test-admin-integration@company.com",
+                username: "itest.admin",
                 passwordHash,
                 role: "ADMIN",
                 isActive: true
@@ -53,7 +53,7 @@ describe("API Integration Tests", () => {
         testViewerUser = await prisma.user.create({
             data: {
                 name: "Integration Viewer",
-                email: "test-viewer-integration@company.com",
+                username: "itest.viewer",
                 passwordHash,
                 role: "VIEWER",
                 isActive: true
@@ -67,13 +67,13 @@ describe("API Integration Tests", () => {
             await prisma.auditLog.deleteMany({
                 where: {
                     user: {
-                        email: { in: ["test-admin-integration@company.com", "test-viewer-integration@company.com"] }
+                        username: { in: ["itest.admin", "itest.viewer"] }
                     }
                 }
             });
             await prisma.user.deleteMany({
                 where: {
-                    email: { in: ["test-admin-integration@company.com", "test-viewer-integration@company.com"] }
+                    username: { in: ["itest.admin", "itest.viewer"] }
                 }
             });
         }
@@ -116,7 +116,7 @@ describe("API Integration Tests", () => {
             const res = await fetch(`${baseUrl}/api/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: "admin@company.com" })
+                body: JSON.stringify({ username: "admin" })
             });
 
             assert.strictEqual(res.status, 400);
@@ -129,7 +129,7 @@ describe("API Integration Tests", () => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    email: "non-existent-user@company.com",
+                    username: "nonexistent.user",
                     password: "Password123!"
                 })
             });
@@ -137,7 +137,7 @@ describe("API Integration Tests", () => {
             assert.strictEqual(res.status, 401);
             const data = await res.json();
             assert.strictEqual(data.status, "error");
-            assert.strictEqual(data.message, "Invalid email or password");
+            assert.strictEqual(data.message, "Invalid username or password");
         });
 
         it("should reject incorrect password with the same generic 401 Unauthorized", async () => {
@@ -145,7 +145,7 @@ describe("API Integration Tests", () => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    email: "test-admin-integration@company.com",
+                    username: "itest.admin",
                     password: "WrongPassword999!"
                 })
             });
@@ -153,7 +153,7 @@ describe("API Integration Tests", () => {
             assert.strictEqual(res.status, 401);
             const data = await res.json();
             assert.strictEqual(data.status, "error");
-            assert.strictEqual(data.message, "Invalid email or password");
+            assert.strictEqual(data.message, "Invalid username or password");
         });
 
         it("should authenticate ADMIN successfully, return JWT, and never expose password hash", async () => {
@@ -161,7 +161,7 @@ describe("API Integration Tests", () => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    email: "test-admin-integration@company.com",
+                    username: "itest.admin",
                     password: "TestPassword123!"
                 })
             });
@@ -170,7 +170,7 @@ describe("API Integration Tests", () => {
             const data = await res.json();
             assert.strictEqual(data.status, "success");
             assert.ok(data.data.token, "JWT token must be returned");
-            assert.strictEqual(data.data.user.email, "test-admin-integration@company.com");
+            assert.strictEqual(data.data.user.username, "itest.admin");
             assert.strictEqual(data.data.user.role, "ADMIN");
             assert.strictEqual(data.data.user.passwordHash, undefined, "passwordHash must never be exposed");
 
@@ -182,7 +182,7 @@ describe("API Integration Tests", () => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    email: "test-viewer-integration@company.com",
+                    username: "itest.viewer",
                     password: "TestPassword123!"
                 })
             });
@@ -211,7 +211,7 @@ describe("API Integration Tests", () => {
             assert.strictEqual(res.status, 200);
             const data = await res.json();
             assert.strictEqual(data.status, "success");
-            assert.strictEqual(data.data.user.email, "test-admin-integration@company.com");
+            assert.strictEqual(data.data.user.username, "itest.admin");
             assert.strictEqual(data.data.user.role, "ADMIN");
             assert.strictEqual(data.data.user.passwordHash, undefined);
         });
