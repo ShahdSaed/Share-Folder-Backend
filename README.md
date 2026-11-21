@@ -57,8 +57,17 @@ JWT_SECRET="replace_with_a_secure_random_secret_at_least_32_chars"
 JWT_EXPIRES_IN="15m"
 
 # Refresh Token configuration
-REFRESH_TOKEN_EXPIRES_IN="7d"
-COOKIE_SAMESITE="lax"
+REFRESH_TOKEN_DAYS=7
+COOKIE_SECURE=false          # true in production (HTTPS)
+COOKIE_SAMESITE="lax"        # frontend reaches the API same-origin via a /api rewrite
+
+# Uploaded files folder. On Render, mount a Persistent Disk at /var/data and use /var/data/private.
+# Leave empty locally (defaults to backend/storage/private).
+STORAGE_DIR=
+
+# Reverse proxies in front of the API (Express "trust proxy").
+# Render only = 1; frontend static site proxying /api via a Render rewrite = 2
+TRUST_PROXY=1
 
 # CORS Allowed Origins (comma-separated, no trailing slashes)
 CORS_ORIGINS="http://localhost:4200,http://127.0.0.1:4200"
@@ -95,7 +104,7 @@ npm start
 
 ### Running Tests
 ```bash
-# Run all unit tests (115 passing tests across 34 suites)
+# Run all unit tests
 npm test
 
 # Explicit unit tests
@@ -154,7 +163,7 @@ Standard Error Codes:
 - **Refresh Token:**
   - Cryptographically secure random 256-bit hex token.
   - Stored in the database **only as a SHA-256 hash**.
-  - Delivered to the browser as an `HttpOnly`, `Secure` (in production), `SameSite=Lax` cookie named `refresh_token` scoped to `/api/v1/auth` (and `/api/auth`).
+  - Delivered to the browser as an `HttpOnly`, `Secure` (in production), `SameSite=Lax` cookie named `refresh_token` scoped to `/api`.
   - **Rotation:** Every call to `/api/v1/auth/refresh` revokes the old refresh token and issues a brand-new refresh token.
   - **Reuse Detection:** If an already-invalidated/replayed refresh token is presented, the affected session is revoked immediately.
 - **File Unlock Token:**
@@ -178,7 +187,7 @@ Standard Error Codes:
 ### Authentication (`/api/v1/auth`)
 | Method | Endpoint | Auth | Role | Description |
 |---|---|---|---|---|
-| `POST` | `/api/v1/auth/login` | None | Public | Email + password login. Returns Access Token; sets Refresh Token cookie. |
+| `POST` | `/api/v1/auth/login` | None | Public | Username + password login. Returns Access Token; sets Refresh Token cookie. |
 | `POST` | `/api/v1/auth/refresh` | Cookie | Public | Refreshes Access Token and rotates Refresh Token cookie. |
 | `POST` | `/api/v1/auth/logout` | Cookie | Public | Revokes current session and clears cookie. |
 | `POST` | `/api/v1/auth/logout-all`| Bearer | All | Revokes all active sessions for the user. |
@@ -189,18 +198,19 @@ Standard Error Codes:
 | Method | Endpoint | Auth | Role | Description |
 |---|---|---|---|---|
 | `GET`  | `/api/v1/users` | Bearer | ADMIN | Paginated list of users (`page`, `limit`). |
-| `POST` | `/api/v1/users` | Bearer | ADMIN | Create user (`name`, `email`, `password`, `role`). |
+| `POST` | `/api/v1/users` | Bearer | ADMIN | Create user (`name`, `username`, `password`, `role`). |
 | `GET`  | `/api/v1/users/:id` | Bearer | ADMIN or Self | Get user profile. |
-| `PATCH`| `/api/v1/users/:id` | Bearer | ADMIN | Update user (name, email, role, isActive). Blocks self-demotion/deactivation. |
-| `PATCH`| `/api/v1/users/:id/password` | Bearer | ADMIN | Reset user password and revoke their sessions. |
+| `PATCH`| `/api/v1/users/:id` | Bearer | ADMIN | Update user (name, username, role, isActive). Blocks self-demotion/deactivation. |
+| `PATCH`| `/api/v1/users/:id/status` | Bearer | ADMIN | Activate/deactivate a user (revokes their sessions). Blocks self-deactivation. |
+| `POST` | `/api/v1/users/:id/reset-password` | Bearer | ADMIN | Reset user password and revoke their sessions. |
 
 ### Files Management (`/api/v1/files`)
 | Method | Endpoint | Auth | Role | Description |
 |---|---|---|---|---|
-| `GET`  | `/api/v1/files` | Bearer | All | List files. ADMIN sees all; VIEWER sees only assigned files. |
-| `POST` | `/api/v1/files` | Bearer | ADMIN | Multipart upload (`file`, `password`, optional `name`). |
+| `GET`  | `/api/v1/files` | Bearer | All | List files (`search` matches name or description). ADMIN sees all; VIEWER sees only assigned files. |
+| `POST` | `/api/v1/files` | Bearer | ADMIN | Multipart upload (`file`, `password`, optional `name`, optional `description` ≤ 1000 chars). |
 | `GET`  | `/api/v1/files/:id` | Bearer | All | Metadata of a file. |
-| `PATCH`| `/api/v1/files/:id` | Bearer | ADMIN | Rename file display name. |
+| `PATCH`| `/api/v1/files/:id` | Bearer | ADMIN | Update `name` and/or `description` (empty description clears it). |
 | `DELETE`| `/api/v1/files/:id` | Bearer | ADMIN | Deletes file from database and deletes disk storage. |
 | `PUT`  | `/api/v1/files/:id/password` | Bearer | ADMIN | Updates file password. |
 | `POST` | `/api/v1/files/:id/verify-password` | Bearer | All | Verifies file password and returns short-lived `unlockToken`. |
@@ -220,7 +230,7 @@ Standard Error Codes:
 
 ### VIEWER User Flow
 1. **Login:**
-   `POST /api/v1/auth/login` with email and password.
+   `POST /api/v1/auth/login` with username and password.
    Store `accessToken` in memory. Browser automatically receives `refresh_token` HttpOnly cookie.
 2. **List Assigned Files:**
    `GET /api/v1/files` with `Authorization: Bearer <ACCESS_TOKEN>`.
